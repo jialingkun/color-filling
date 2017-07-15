@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 using UnityEngine.UI;
+using System.IO;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
 
@@ -20,21 +21,33 @@ public class pixelmanipulated : MonoBehaviour {
 	//threshold to bug fix color RGB value not equal by small margin
 	public float diffThreshold;
 
+	public string coloredPath;
+
 
 	// Use this for initialization
 	void Start () {
-
 		//setting temp texture width and height 
 		currentTexture = new Texture2D (originalTexture.width, originalTexture.height);
-		//fill the new texture with the original one (to avoid "empty" pixels)
-		for (int y =0; y<currentTexture.height; y++) {
-			for (int x = 0; x<currentTexture.width; x++) {
-				if (originalTexture.GetPixel (x, y).grayscale < 0.8f) { //1 = black, 0 = white
-					currentTexture.SetPixel (x, y, Color.black);
-				} else {
-					currentTexture.SetPixel (x, y, Color.white);
+
+
+		coloredPath = Application.persistentDataPath + "/ColoredPictures";
+
+		Texture2D tempTexture = load (coloredPath + "/colored.png");
+		if (tempTexture != null) {
+			currentTexture = tempTexture;
+		} else {
+
+			//fill the new texture with the original one (to avoid "empty" pixels)
+			for (int y =0; y<currentTexture.height; y++) {
+				for (int x = 0; x<currentTexture.width; x++) {
+					if (originalTexture.GetPixel (x, y).grayscale < 0.8f) { //1 = black, 0 = white
+						currentTexture.SetPixel (x, y, Color.black);
+					} else {
+						currentTexture.SetPixel (x, y, Color.white);
+					}
 				}
 			}
+
 		}
 
 		diffThreshold = 0.08f;
@@ -138,6 +151,85 @@ public class pixelmanipulated : MonoBehaviour {
 	public void clickColorPallete(){
 		GameObject palleteObject = EventSystem.current.currentSelectedGameObject;
 		selectedColor = palleteObject.GetComponent<Image> ().color;
+	}
+
+	public void clickSaveTodevice(){
+		string filepath = Application.persistentDataPath + "/../../../../Pictures/ColoringBookSavedImage";
+		try {
+			byte[] bytes = currentTexture.EncodeToPNG();
+
+			if (!Directory.Exists(filepath))
+			{
+				Directory.CreateDirectory(filepath);
+			}
+
+			File.WriteAllBytes(filepath + "/colored.png", bytes);
+			GameObject.Find("Savemessage").GetComponent<Text>().text = "Saved to \n"+ filepath;
+		} catch (System.Exception ex) {
+			GameObject.Find("Savemessage").GetComponent<Text>().text = "Error \n"+ ex;
+		}
+
+
+		save();
+
+	}
+
+
+	public void clickShare(){
+		save();
+
+		string destination = coloredPath + "/colored.png";
+		if(!Application.isEditor)
+		{
+			//if UNITY_ANDROID
+			string body = "Body of message to be shared";
+			string subject = "Subject of message";
+
+			AndroidJavaClass intentClass = new AndroidJavaClass("android.content.Intent");
+			AndroidJavaObject intentObject = new AndroidJavaObject("android.content.Intent");
+			intentObject.Call<AndroidJavaObject>("setAction", intentClass.GetStatic<string>("ACTION_SEND"));
+			AndroidJavaClass uriClass = new AndroidJavaClass("android.net.Uri");
+			AndroidJavaObject uriObject = uriClass.CallStatic<AndroidJavaObject>("parse","file://" + destination);
+			intentObject.Call<AndroidJavaObject>("putExtra", intentClass.GetStatic<string>("EXTRA_STREAM"), uriObject);
+			intentObject.Call<AndroidJavaObject>("putExtra", intentClass.GetStatic<string>("EXTRA_TEXT"), body );
+			intentObject.Call<AndroidJavaObject>("putExtra", intentClass.GetStatic<string>("EXTRA_SUBJECT"), subject);
+			intentObject.Call<AndroidJavaObject>("setType", "image/jpeg");
+			AndroidJavaClass unity = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+			AndroidJavaObject currentActivity = unity.GetStatic<AndroidJavaObject>("currentActivity");
+
+			// run intent from the current Activity
+			currentActivity.Call("startActivity", intentObject);
+		}
+	}
+
+	public void save(){
+		string filepath = coloredPath;
+		try {
+			byte[] bytes = currentTexture.EncodeToPNG();
+
+			if (!Directory.Exists(filepath))
+			{
+				Directory.CreateDirectory(filepath);
+			}
+
+			File.WriteAllBytes(filepath + "/colored.png", bytes);
+			GameObject.Find("Savemessage").GetComponent<Text>().text = "Saved to \n"+ filepath;
+		} catch (System.Exception ex) {
+			GameObject.Find("Savemessage").GetComponent<Text>().text = "Error \n"+ ex;
+		}
+	}
+
+
+	public Texture2D load(string path){
+		Texture2D tex = null;
+		byte[] fileData;
+
+		if (File.Exists(path))     {
+			fileData = File.ReadAllBytes(path);
+			tex = new Texture2D(2, 2);
+			tex.LoadImage(fileData); //..this will auto-resize the texture dimensions.
+		}
+		return tex;
 	}
 
 }
