@@ -26,10 +26,7 @@ public class pixelmanipulated : MonoBehaviour {
 
 	private string coloredPath;
 
-
-
-
-
+	private Color nodeColor;
 
 
 	//zoom and pan
@@ -87,6 +84,21 @@ public class pixelmanipulated : MonoBehaviour {
 	private bool isTouching = false;
 
 
+	//undo redo
+
+	//struct to store pixel point as integer
+	public struct oldState{
+		public intVector2 cursor;
+		public Color color;
+	}
+
+	private Stack<oldState> undoStack;
+	private Stack<oldState> redoStack;
+	private oldState lastUndo;
+
+
+
+
 	// Use this for initialization
 	void Start () {
 
@@ -130,15 +142,6 @@ public class pixelmanipulated : MonoBehaviour {
 		this.GetComponent<RawImage>().texture = currentTexture;
 
 
-
-
-
-
-
-
-
-
-
 		//zoom and pan
 
 		imageTransform = this.GetComponent<RectTransform> ();
@@ -151,6 +154,12 @@ public class pixelmanipulated : MonoBehaviour {
 		//RectTransform ImagePanel = imageTransform.parent.GetComponent<RectTransform> ();
 		defaultlimitX = imageTransform.offsetMax.x;
 		defaultlimitY = imageTransform.offsetMax.y;
+
+
+		//undo redo
+		undoStack = new Stack<oldState>();
+		redoStack = new Stack<oldState>();
+
 
 	}
 
@@ -290,20 +299,6 @@ public class pixelmanipulated : MonoBehaviour {
 	}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 	//fill
 	
 	public void DebugPoint(BaseEventData data){
@@ -330,11 +325,27 @@ public class pixelmanipulated : MonoBehaviour {
 			cursorPosition.x = (int)((localCursor.x + defaultlimitX)/this.GetComponent<RectTransform> ().sizeDelta.x*currentTexture.width);
 			cursorPosition.y = (int)((localCursor.y + defaultlimitY)/this.GetComponent<RectTransform> ().sizeDelta.y*currentTexture.height);
 
-
 			//Stopwatch stopwatch = Stopwatch.StartNew ();
 
-			floodFill (cursorPosition, currentTexture);
-			currentTexture.Apply ();
+			//check if there any change before storing to undo stack
+			nodeColor = currentTexture.GetPixel (cursorPosition.x, cursorPosition.y);
+			if (!colorEqual (nodeColor, Color.black) &&
+			    !colorEqual (nodeColor, selectedColor) &&
+			    cursorPosition.x >= 0 && cursorPosition.y >= 0 &&
+			    cursorPosition.x < currentTexture.width && cursorPosition.y < currentTexture.height) {
+
+				//store to undo stack
+				oldState currentState = new oldState();
+				currentState.cursor = cursorPosition;
+				currentState.color = nodeColor;
+				undoStack.Push (currentState);
+
+				//apply color filling
+				floodFill (cursorPosition, selectedColor, currentTexture);
+				currentTexture.Apply ();
+
+				redoStack.Clear ();
+			}
 
 			//stopwatch.Stop ();
 
@@ -352,30 +363,25 @@ public class pixelmanipulated : MonoBehaviour {
 			Mathf.Abs (me.a - other.a) < diffThreshold;
 	}
 
-	private void floodFill(intVector2 startNode, Texture2D texture){
+	private void floodFill(intVector2 startNode, Color newColor, Texture2D texture){
 		Queue<intVector2> myQueue = new Queue<intVector2> ();
 		myQueue.Enqueue (startNode);
 
 		intVector2 node;
 		intVector2 nextNode;
 
-		Color nodeColor;
-
 		while (myQueue.Count>0) {
 			node = myQueue.Dequeue ();
-
 			nodeColor = texture.GetPixel (node.x, node.y);
-			//print("current Color: "+selectedColor + " | node color: "+nodeColor);
-
 
 			//fill condition
 			if (!colorEqual(nodeColor,Color.black) && 
-				!colorEqual(nodeColor,selectedColor) &&
+				!colorEqual(nodeColor,newColor) &&
 				node.x>=0 && node.y >=0 &&
 				node.x<texture.width && node.y<texture.height) {
 
 				//replace color
-				texture.SetPixel (node.x, node.y, selectedColor);
+				texture.SetPixel (node.x, node.y, newColor);
 
 
 				//north
@@ -422,10 +428,44 @@ public class pixelmanipulated : MonoBehaviour {
 		} catch (System.Exception ex) {
 			GameObject.Find("Savemessage").GetComponent<Text>().text = "Error \n"+ ex;
 		}
-
-
 		save();
+	}
 
+
+
+	public void clickUndo(){
+		if (undoStack.Count>0) {
+			//take state from undo stack
+			lastUndo = undoStack.Pop ();
+
+			//store old state to redo stack
+			nodeColor = currentTexture.GetPixel (lastUndo.cursor.x, lastUndo.cursor.y);
+			oldState currentState;
+			currentState.cursor = lastUndo.cursor;
+			currentState.color = nodeColor;
+			redoStack.Push (currentState);
+
+			//apply color filling
+			floodFill (lastUndo.cursor, lastUndo.color, currentTexture);
+			currentTexture.Apply ();
+		}
+	}
+
+	public void clickRedo(){
+		if (redoStack.Count>0) {
+			lastUndo = redoStack.Pop ();
+
+			//store old state to undo stack
+			nodeColor = currentTexture.GetPixel (lastUndo.cursor.x, lastUndo.cursor.y);
+			oldState currentState;
+			currentState.cursor = lastUndo.cursor;
+			currentState.color = nodeColor;
+			undoStack.Push (currentState);
+
+			//apply color filling
+			floodFill (lastUndo.cursor, lastUndo.color, currentTexture);
+			currentTexture.Apply ();
+		}
 	}
 
 
