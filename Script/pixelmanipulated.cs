@@ -141,7 +141,7 @@ public class pixelmanipulated : MonoBehaviour {
 		//setting temp texture width and height 
 		currentTexture = new Texture2D (originalTexture.width, originalTexture.height);
 
-
+		//load texture from disk
 		coloredPath = Application.persistentDataPath + "/ColoredPictures";
 		Texture2D tempTexture = load (coloredPath + "/"+ filenameID +".png");
 		if (tempTexture != null) {
@@ -351,7 +351,7 @@ public class pixelmanipulated : MonoBehaviour {
 		
 		coloringScreenReleased ();
 
-		if (Time.time < nextWait && !isFinish || true) { //fill delay condition
+		if (Time.time < nextWait && !isFinish) { //fill delay condition
 			
 			PointerEventData ped = ( PointerEventData )data;
 			Vector2 localCursor;
