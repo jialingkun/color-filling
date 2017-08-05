@@ -4,10 +4,26 @@ using UnityEngine.UI;
 using System.IO;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
+using UnityEngine.SceneManagement;
 
 //using System.Diagnostics;
 
 public class pixelmanipulated : MonoBehaviour {
+
+	private GameData permanentData;
+	private int stageID;
+	private int filenameID;
+	private bool isFinish;
+	private GameObject backgroundPalette;
+	private GameObject backgroundOperation;
+	private GameObject backgroundFinish;
+	private GameObject backgroundFinishMessage;
+	private int activePaletteNumber;
+	private GameObject leftPalette;
+	private GameObject rightPalette;
+	private GameObject[] paletteObject;
+
+
 
 	//fill
 
@@ -16,7 +32,7 @@ public class pixelmanipulated : MonoBehaviour {
 		public int x, y;
 	}
 
-	public Texture2D originalTexture;
+	private Texture2D originalTexture;
 
 	private Texture2D currentTexture;
 	private Color selectedColor;
@@ -33,25 +49,8 @@ public class pixelmanipulated : MonoBehaviour {
 
 	//canvas scaler to fix diffferent speed in different screen issue
 	private CanvasScaler canvasScaler;
-	private Vector2 ScreenScale
-	{
-		get
-		{
-			if (canvasScaler == null)
-			{
-				canvasScaler = GetComponentInParent<CanvasScaler>();
-			}
+	private Vector2 ScreenScale;
 
-			if (canvasScaler)
-			{
-				return new Vector2(canvasScaler.referenceResolution.x / Screen.width, canvasScaler.referenceResolution.y / Screen.height);
-			}
-			else
-			{
-				return Vector2.one;
-			}
-		}
-	}
 
 	//speed
 	public float zoomSpeed = 5f;
@@ -72,7 +71,13 @@ public class pixelmanipulated : MonoBehaviour {
 	private float deltaPosX = 0.0f;
 	private float deltaPosY = 0.0f;
 
+	private Touch touch;
+	private Touch touchZero;
+	private Touch touchOne;
 	private Vector2 firstPos;
+
+	private Vector2 secPos;
+
 
 
 
@@ -101,7 +106,33 @@ public class pixelmanipulated : MonoBehaviour {
 
 	// Use this for initialization
 	void Start () {
+		//global data
+		permanentData = GameObject.Find ("permanentData").GetComponent<GameData>();
+		stageID = PlayerPrefs.GetInt ("stageID");
+		filenameID = PlayerPrefs.GetInt ("filenameID");
+		originalTexture = permanentData.stageImages [stageID];
 
+		backgroundOperation = GameObject.Find ("BackgroundOperation");
+		backgroundPalette = GameObject.Find ("BackgroundPalette");
+		backgroundFinish = GameObject.Find ("BackgroundFinish");
+		backgroundFinishMessage = GameObject.Find ("BackgroundFinishMessage");
+
+		backgroundFinish.SetActive (false);
+		backgroundFinishMessage.SetActive (false);
+
+		activePaletteNumber = 0;
+		leftPalette = GameObject.Find ("Left");
+		rightPalette = GameObject.Find ("Right");
+		paletteObject = new GameObject[3];
+		paletteObject[0] = GameObject.Find ("1");
+		paletteObject[1] = GameObject.Find ("2");
+		paletteObject[2] = GameObject.Find ("3");
+
+		leftPalette.SetActive (false);
+		paletteObject[1].SetActive (false);
+		paletteObject[2].SetActive (false);
+
+		isFinish = false;
 		isTouching = false;
 
 
@@ -112,8 +143,7 @@ public class pixelmanipulated : MonoBehaviour {
 
 
 		coloredPath = Application.persistentDataPath + "/ColoredPictures";
-
-		Texture2D tempTexture = load (coloredPath + "/colored.png");
+		Texture2D tempTexture = load (coloredPath + "/"+ filenameID +".png");
 		if (tempTexture != null) {
 			currentTexture = tempTexture;
 		} else {
@@ -129,6 +159,17 @@ public class pixelmanipulated : MonoBehaviour {
 				}
 			}
 
+		}
+
+		//fill the new texture with the original one (to avoid "empty" pixels)
+		for (int y =0; y<currentTexture.height; y++) {
+			for (int x = 0; x<currentTexture.width; x++) {
+				if (originalTexture.GetPixel (x, y).grayscale < 0.8f) { //1 = black, 0 = white
+					currentTexture.SetPixel (x, y, Color.black);
+				} else {
+					currentTexture.SetPixel (x, y, Color.white);
+				}
+			}
 		}
 
 		diffThreshold = 0.08f;
@@ -155,10 +196,15 @@ public class pixelmanipulated : MonoBehaviour {
 		defaultlimitX = imageTransform.offsetMax.x;
 		defaultlimitY = imageTransform.offsetMax.y;
 
+		canvasScaler = GetComponentInParent<CanvasScaler> ();
+		ScreenScale = new Vector2(canvasScaler.referenceResolution.x / Screen.width, canvasScaler.referenceResolution.y / Screen.height);
+
 
 		//undo redo
 		undoStack = new Stack<oldState>();
 		redoStack = new Stack<oldState>();
+
+
 
 
 	}
@@ -166,7 +212,7 @@ public class pixelmanipulated : MonoBehaviour {
 
 	// Update is called once per frame
 	void Update () {
-		if (isTouching) {
+		if (isTouching && !isFinish) {
 
 
 			if (Input.touchCount == 2)      //For Detecting Multiple Touch On Screen
@@ -178,8 +224,8 @@ public class pixelmanipulated : MonoBehaviour {
 
 
 				// Store both touches.
-				Touch touchZero = Input.GetTouch(0);
-				Touch touchOne = Input.GetTouch(1);
+				touchZero = Input.GetTouch(0);
+				touchOne = Input.GetTouch(1);
 
 
 				// Find the position in the previous frame of each touch.
@@ -231,7 +277,7 @@ public class pixelmanipulated : MonoBehaviour {
 				nextWait = Time.time + holdRate;
 
 				//store the first touch position
-				Touch touch = Input.GetTouch(0);
+				touch = Input.GetTouch(0);
 				firstPos.x = touch.position.x;
 				firstPos.y = touch.position.y;
 			}
@@ -242,8 +288,7 @@ public class pixelmanipulated : MonoBehaviour {
 				if (scaling > 1.01f)
 				{
 					//store the next touch position
-					Touch touch = Input.GetTouch(0);
-					Vector2 secPos;
+					touch = Input.GetTouch(0);
 					secPos.x = touch.position.x;
 					secPos.y = touch.position.y;
 
@@ -277,13 +322,14 @@ public class pixelmanipulated : MonoBehaviour {
 
 				}
 			}
-
+			/*
 			if (Input.touchCount == 1 && Input.GetTouch(0).phase == TouchPhase.Stationary) {
 				//store the first touch position
-				Touch touch = Input.GetTouch(0);
+				touch = Input.GetTouch(0);
 				firstPos.x = touch.position.x;
 				firstPos.y = touch.position.y;
 			}
+			*/
 		}
 
 
@@ -305,7 +351,7 @@ public class pixelmanipulated : MonoBehaviour {
 		
 		coloringScreenReleased ();
 
-		if (Time.time < nextWait) { //fill delay condition
+		if (Time.time < nextWait && !isFinish || true) { //fill delay condition
 			
 			PointerEventData ped = ( PointerEventData )data;
 			Vector2 localCursor;
@@ -423,12 +469,22 @@ public class pixelmanipulated : MonoBehaviour {
 				Directory.CreateDirectory(filepath);
 			}
 
-			File.WriteAllBytes(filepath + "/colored.png", bytes);
-			GameObject.Find("Savemessage").GetComponent<Text>().text = "Saved to \n"+ filepath;
+			File.WriteAllBytes(filepath + "/" + filenameID + ".png", bytes);
+			//GameObject.Find("Savemessage").GetComponent<Text>().text = "Saved to \n"+ filepath;
+
+			/*
+			//REFRESHING THE ANDROID PHONE PHOTO GALLERY IS BEGUN
+			AndroidJavaClass classPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+			AndroidJavaObject objActivity = classPlayer.GetStatic<AndroidJavaObject>("currentActivity");        
+			AndroidJavaClass classUri = new AndroidJavaClass("android.net.Uri");        
+			AndroidJavaObject objIntent = new AndroidJavaObject("android.content.Intent", new object[2]{"android.intent.action.MEDIA_MOUNTED", classUri.CallStatic<AndroidJavaObject>("parse", "file://" + filepath + "/colored.png")});        
+			objActivity.Call ("sendBroadcast", objIntent);
+			//REFRESHING THE ANDROID PHONE PHOTO GALLERY IS COMPLETE
+			*/
+
 		} catch (System.Exception ex) {
-			GameObject.Find("Savemessage").GetComponent<Text>().text = "Error \n"+ ex;
+			//GameObject.Find("Savemessage").GetComponent<Text>().text = "Error \n"+ ex;
 		}
-		save();
 	}
 
 
@@ -470,8 +526,6 @@ public class pixelmanipulated : MonoBehaviour {
 
 
 	public void clickShare(){
-		save();
-
 		string destination = coloredPath + "/colored.png";
 		if(!Application.isEditor)
 		{
@@ -496,6 +550,50 @@ public class pixelmanipulated : MonoBehaviour {
 		}
 	}
 
+	public void clickExit(){
+		SceneManager.LoadScene (2);
+	}
+
+	public void clickRight(){
+		if (activePaletteNumber <=0) {
+			leftPalette.SetActive (true);
+		}
+		if (activePaletteNumber < 2) {
+			paletteObject [0].SetActive (false);
+			paletteObject [1].SetActive (false);
+			paletteObject [2].SetActive (false);
+			activePaletteNumber++;
+			paletteObject [activePaletteNumber].SetActive (true);
+			if (activePaletteNumber >= 2) {
+				rightPalette.SetActive (false);
+			}
+		}
+	}
+
+	public void clickLeft(){
+		if (activePaletteNumber >=2) {
+			rightPalette.SetActive (true);
+		}
+		if (activePaletteNumber > 0) {
+			paletteObject [0].SetActive (false);
+			paletteObject [1].SetActive (false);
+			paletteObject [2].SetActive (false);
+			activePaletteNumber--;
+			paletteObject [activePaletteNumber].SetActive (true);
+			if (activePaletteNumber <= 0) {
+				leftPalette.SetActive (false);
+			}
+		}
+	}
+
+	public void clickFinish(){
+		save ();
+		backgroundFinish.SetActive (true);
+		backgroundFinishMessage.SetActive (true);
+		backgroundOperation.SetActive (false);
+		backgroundPalette.SetActive (false);
+	}
+
 	public void save(){
 		string filepath = coloredPath;
 		try {
@@ -506,10 +604,15 @@ public class pixelmanipulated : MonoBehaviour {
 				Directory.CreateDirectory(filepath);
 			}
 
-			File.WriteAllBytes(filepath + "/colored.png", bytes);
-			GameObject.Find("Savemessage").GetComponent<Text>().text = "Saved to \n"+ filepath;
+			File.WriteAllBytes(filepath + "/" + filenameID + ".png", bytes);
+			if (SaveLoad.SaveCounter<filenameID) {
+				SaveLoad.addCounter();
+			}
+
+
+			//GameObject.Find("Savemessage").GetComponent<Text>().text = "Saved to \n"+ filepath;
 		} catch (System.Exception ex) {
-			GameObject.Find("Savemessage").GetComponent<Text>().text = "Error \n"+ ex;
+			//GameObject.Find("Savemessage").GetComponent<Text>().text = "Error \n"+ ex;
 		}
 	}
 
