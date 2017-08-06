@@ -13,6 +13,7 @@ public class pixelmanipulated : MonoBehaviour {
 	private GameData permanentData;
 	private int stageID;
 	private int filenameID;
+	private int collectionIndex;
 	private bool isFinish;
 	private GameObject backgroundPalette;
 	private GameObject backgroundOperation;
@@ -110,7 +111,8 @@ public class pixelmanipulated : MonoBehaviour {
 		permanentData = GameObject.Find ("permanentData").GetComponent<GameData>();
 		stageID = PlayerPrefs.GetInt ("stageID");
 		filenameID = PlayerPrefs.GetInt ("filenameID");
-		originalTexture = permanentData.stageImages [stageID];
+		collectionIndex = PlayerPrefs.GetInt ("collectionIndex");
+
 
 		backgroundOperation = GameObject.Find ("BackgroundOperation");
 		backgroundPalette = GameObject.Find ("BackgroundPalette");
@@ -138,8 +140,7 @@ public class pixelmanipulated : MonoBehaviour {
 
 		//fill
 
-		//setting temp texture width and height 
-		currentTexture = new Texture2D (originalTexture.width, originalTexture.height);
+
 
 		//load texture from disk
 		coloredPath = Application.persistentDataPath + "/ColoredPictures";
@@ -147,6 +148,9 @@ public class pixelmanipulated : MonoBehaviour {
 		if (tempTexture != null) {
 			currentTexture = tempTexture;
 		} else {
+			originalTexture = permanentData.stageImages [stageID];
+			//setting temp texture width and height 
+			currentTexture = new Texture2D (originalTexture.width, originalTexture.height);
 
 			//fill the new texture with the original one (to avoid "empty" pixels)
 			for (int y =0; y<currentTexture.height; y++) {
@@ -159,17 +163,6 @@ public class pixelmanipulated : MonoBehaviour {
 				}
 			}
 
-		}
-
-		//fill the new texture with the original one (to avoid "empty" pixels)
-		for (int y =0; y<currentTexture.height; y++) {
-			for (int x = 0; x<currentTexture.width; x++) {
-				if (originalTexture.GetPixel (x, y).grayscale < 0.8f) { //1 = black, 0 = white
-					currentTexture.SetPixel (x, y, Color.black);
-				} else {
-					currentTexture.SetPixel (x, y, Color.white);
-				}
-			}
 		}
 
 		diffThreshold = 0.08f;
@@ -460,7 +453,7 @@ public class pixelmanipulated : MonoBehaviour {
 	}
 
 	public void clickSaveTodevice(){
-		string filepath = Application.persistentDataPath + "/../../../../Pictures/ColoringBookSavedImage";
+		string filepath = Application.persistentDataPath + "/../../../../Pictures/ColoringBook";
 		try {
 			byte[] bytes = currentTexture.EncodeToPNG();
 
@@ -471,6 +464,9 @@ public class pixelmanipulated : MonoBehaviour {
 
 			File.WriteAllBytes(filepath + "/" + filenameID + ".png", bytes);
 			//GameObject.Find("Savemessage").GetComponent<Text>().text = "Saved to \n"+ filepath;
+			GameObject saveObject = GameObject.Find("Save");
+			saveObject.GetComponent<Button>().enabled = false;
+			//saveObject.GetComponent<Image>().sprite = ...
 
 			/*
 			//REFRESHING THE ANDROID PHONE PHOTO GALLERY IS BEGUN
@@ -605,8 +601,12 @@ public class pixelmanipulated : MonoBehaviour {
 			}
 
 			File.WriteAllBytes(filepath + "/" + filenameID + ".png", bytes);
+			CollectionScript newCollection = new CollectionScript(currentTexture,filenameID);
 			if (SaveLoad.SaveCounter<filenameID) {
 				SaveLoad.addCounter();
+				permanentData.collection.Add(newCollection);
+			}else{
+				permanentData.collection[collectionIndex].tex = currentTexture;
 			}
 
 

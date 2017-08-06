@@ -3,10 +3,10 @@ using System.Collections;
 
 public class CollectionScript {
 	public Texture2D tex;
-	public string path;
+	public int fileID;
 
-	public CollectionScript(Texture2D tex, string path){
+	public CollectionScript(Texture2D tex, int fileID){
 		this.tex = tex;
-		this.path = path;
+		this.fileID = fileID;
 	}
 }

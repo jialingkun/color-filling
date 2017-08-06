@@ -75,6 +75,7 @@ public class stageScript : MonoBehaviour {
 	public void clickStage(int stageID){
 		PlayerPrefs.SetInt ("stageID", stageID);
 		PlayerPrefs.SetInt ("filenameID", SaveLoad.SaveCounter+1);
+		PlayerPrefs.SetInt ("collectionIndex", -1);
 		SceneManager.LoadScene (3);
 	
 	}

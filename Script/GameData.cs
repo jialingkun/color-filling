@@ -27,7 +27,7 @@ public class GameData : MonoBehaviour {
 				fileData = File.ReadAllBytes(path);
 				tex = new Texture2D(2, 2);
 				tex.LoadImage(fileData); //..this will auto-resize the texture dimensions.
-				tempCollection = new CollectionScript(tex,path);
+				tempCollection = new CollectionScript(tex,i);
 				collection.Add(tempCollection);
 			}
 		}
